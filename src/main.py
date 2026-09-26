@@ -24,6 +24,14 @@ _SRC_DIR = Path(__file__).resolve().parent
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
+
+def configure_console_encoding():
+    """Keep Vietnamese and status symbols printable in Windows terminals."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
 from core.config import setup_api_key
 
 
@@ -134,10 +142,10 @@ async def part4_attacks():
 
 
 async def main(parts=None):
-    setup_api_key()
-
     if parts is None:
         parts = [2, 3, 4]  # Core: CP2 → CP3 → CP4
+
+    setup_api_key(require_blue=3 in parts, require_red=4 in parts)
 
     for part in parts:
         if part == 2:
@@ -155,6 +163,7 @@ async def main(parts=None):
 
 
 if __name__ == "__main__":
+    configure_console_encoding()
     parser = argparse.ArgumentParser(
         description=(
             "Lab 11: Guardrails / HITL / Red Team — "

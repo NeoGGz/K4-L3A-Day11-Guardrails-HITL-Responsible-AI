@@ -62,14 +62,35 @@ class OpenAIRunner:
             return block_msg
 
         client = self._client()
-        completion = client.chat.completions.create(
-            model=self.model,
-            messages=[
+        request = {
+            "model": self.model,
+            "messages": [
                 {"role": "system", "content": agent.instruction},
                 {"role": "user", "content": user_message},
             ],
-            temperature=self.temperature,
-        )
+            "temperature": self.temperature,
+        }
+        try:
+            completion = client.chat.completions.create(**request)
+        except Exception as exc:
+            # OpenRouter exposes the current free Liquid endpoint under the
+            # :free route tag. Keep the lab's locked model ID as primary, and
+            # use the same model's free route only when the base route has no
+            # endpoint for this account.
+            from openai import NotFoundError
+
+            can_use_free_route = (
+                self.provider == "openrouter"
+                and self.model == "liquid/lfm-2.5-2.6b"
+                and isinstance(exc, NotFoundError)
+                and "no endpoints found" in str(exc).casefold()
+            )
+            if not can_use_free_route:
+                raise
+            request["model"] = f"{self.model}:free"
+            completion = client.chat.completions.create(**request)
+            self.model = request["model"]
+            print(f"OpenRouter Blue route fallback → {self.model}")
         text = (completion.choices[0].message.content or "").strip()
 
         for hook in self.output_hooks:

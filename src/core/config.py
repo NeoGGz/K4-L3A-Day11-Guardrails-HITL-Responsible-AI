@@ -109,7 +109,8 @@ def get_blue_model() -> str:
 
 
 def get_openrouter_api_key() -> str:
-    return os.environ.get("OPENROUTER_API_KEY", "").strip()
+    value = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    return "" if value.endswith("...") or value.startswith("your-") else value
 
 
 def blue_client_kwargs() -> dict:
@@ -166,7 +167,8 @@ def get_red_model_advance() -> str:
 
 
 def get_openai_api_key() -> str:
-    return os.environ.get("OPENAI_API_KEY", "").strip()
+    value = os.environ.get("OPENAI_API_KEY", "").strip()
+    return "" if value.endswith("...") or value.startswith("your-") else value
 
 
 def red_openai_client_kwargs() -> dict:
@@ -234,30 +236,33 @@ def is_harder_model() -> bool:
     return any(x in m for x in ("gpt-5.6", "pro", "gemini-3.8", "gemini-3.7"))
 
 
-def setup_api_key():
-    """Ensure keys for Blue (OpenRouter) + Red / Red Advance (OpenAI or Gemini)."""
-    if not get_openrouter_api_key():
+def setup_api_key(*, require_blue: bool = True, require_red: bool = True):
+    """Prompt only for provider keys required by the selected lab checkpoints."""
+    if require_blue and not get_openrouter_api_key():
         os.environ["OPENROUTER_API_KEY"] = input(
             "Enter OpenRouter API Key (Blue): "
         ).strip()
-    print(f"Blue  — {blue_provider_label()}  [LOCKED]")
+    if require_blue:
+        print(f"Blue  — {blue_provider_label()}  [LOCKED]")
 
-    red = get_red_provider()
-    model = get_red_model()
-    if red == PROVIDER_GEMINI:
-        if not os.environ.get("GOOGLE_API_KEY", "").strip():
-            os.environ["GOOGLE_API_KEY"] = input("Enter Google API Key (Red): ").strip()
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
-        print(f"Red / Red Advance  — gemini:{model}")
-    else:
-        if not get_openai_api_key():
-            os.environ["OPENAI_API_KEY"] = input("Enter OpenAI API Key (Red): ").strip()
-        print(f"Red / Red Advance  — openai:{model}")
+    if require_red:
+        red = get_red_provider()
+        model = get_red_model()
+        if red == PROVIDER_GEMINI:
+            google_key = os.environ.get("GOOGLE_API_KEY", "").strip()
+            if not google_key or "your-" in google_key.casefold() or "..." in google_key:
+                os.environ["GOOGLE_API_KEY"] = input("Enter Google API Key (Red): ").strip()
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
+            print(f"Red / Red Advance  — gemini:{model}")
+        else:
+            if not get_openai_api_key():
+                os.environ["OPENAI_API_KEY"] = input("Enter OpenAI API Key (Red): ").strip()
+            print(f"Red / Red Advance  — openai:{model}")
 
-    print(
-        "Bonus: chọn một — Red tối đa +5 (B1) hoặc Red Advance tối đa +10 (B2)."
-    )
-    if is_harder_model():
+        print(
+            "Bonus: chọn một — Red tối đa +5 (B1) hoặc Red Advance tối đa +10 (B2)."
+        )
+    if require_red and is_harder_model():
         print(
             f"Model khó ({model}) — tuỳ chọn; không đổi tên agent. "
             f"(Gợi ý: {HARD_OPENAI_MODEL} / {HARD_GEMINI_MODEL})"
